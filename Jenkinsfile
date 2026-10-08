@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'deepasri111/college-department-portal'
+        DOCKER_IMAGE = 'deepasri111/college-department-portal:latest'
         DOCKER_CREDENTIALS = 'dockerhub-credentials'
     }
 
@@ -18,13 +18,14 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo 'Building Docker image...'
-                bat 'docker build -t %DOCKER_IMAGE%:latest .'
+                bat "docker build -t ${DOCKER_IMAGE} ."
             }
         }
 
         stage('Push Image') {
             steps {
                 echo 'Pushing image to Docker Hub...'
+
                 withCredentials([
                     usernamePassword(
                         credentialsId: "${DOCKER_CREDENTIALS}",
@@ -32,9 +33,17 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
-                    bat 'docker login -u %DOCKER_USERNAME% -p %DOCKER_PASSWORD%'
-                    bat 'docker push %DOCKER_IMAGE%:latest'
+                    bat 'docker login -u "%DOCKER_USERNAME%" -p "%DOCKER_PASSWORD%"'
+                    bat "docker push ${DOCKER_IMAGE}"
                 }
+            }
+        }
+
+        stage('Test Kubernetes') {
+            steps {
+                echo 'Checking Kubernetes connection...'
+                bat 'kubectl config current-context'
+                bat 'kubectl get nodes'
             }
         }
 
@@ -42,17 +51,14 @@ pipeline {
             steps {
                 echo 'Deploying application to Kubernetes...'
                 bat 'kubectl apply -f deployment.yaml'
-                bat 'kubectl apply -f service.yaml'
-                bat 'kubectl set image deployment/college-department-deployment college-department-container=%DOCKER_IMAGE%:latest'
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                echo 'Checking Kubernetes deployment...'
-                bat 'kubectl rollout status deployment/college-department-deployment'
+                echo 'Verifying Kubernetes deployment...'
+                bat 'kubectl get deployments'
                 bat 'kubectl get pods'
-                bat 'kubectl get service'
             }
         }
     }
